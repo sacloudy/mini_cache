@@ -9,8 +9,8 @@ import java.util.concurrent.Executors;
 
 /**
  * 描述： 使用各种工具类测试
- *          ①使用线程池缓存性能
- *          ②使用CountDownLatch实现压测
+ *          ①使用线程池测试缓存性能
+ *          ②使用CountDownLatch模拟压测
  *          ③使用ThreadLocal确认时间统一性
  */
 public class CacheTest {
@@ -49,9 +49,7 @@ public class CacheTest {
 }
 
 
-
 class ThreadSafeFormatter {
-
     public static ThreadLocal<SimpleDateFormat> dateFormatter = new ThreadLocal<SimpleDateFormat>() {
 
         //每个线程会调用本方法一次，用于初始化
