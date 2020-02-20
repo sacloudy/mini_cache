@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 /**
- * 描述：  用ConcurrentHashMap保证线程安全，但是细细想来还有一个重复计算的问题，而且应该频率不低
+ * 描述： 出于安全性考虑，缓存需要设置有效期，到期自动失效，否则如果缓存一直不失效，那么带来缓存不一致等问题
  */
 public class MyCache<A, V> implements Computable<A, V> {
 
