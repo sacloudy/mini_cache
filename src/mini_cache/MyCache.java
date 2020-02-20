@@ -23,12 +23,14 @@ public class MyCache<A, V> implements Computable<A, V> {
     @Override
     public V compute(A arg) throws Exception {
         Future<V> f = cache.get(arg);
-        if (f == null) {   //虽然概率小 但是这儿其实还是拦不住多线程并发访问的
-            FutureTask<V> ft = new FutureTask<>(()->c.compute(arg));//lambda表达式就是一个实现了callable接口的任务实例
-            f = ft;
-            cache.put(arg, ft);   //先put后run
-            System.out.println("正在执行FutureTask中的callable任务...");
-            ft.run();
+        if (f == null) {   //相同的key一旦通过这个条件，重复计算问题就肯定又会发生了
+            FutureTask<V> ft = new FutureTask<>(()->c.compute(arg));
+            f = cache.putIfAbsent(arg, ft); //使用原子操作保证原子性
+            if (f == null) {   //再来一层过滤
+                f = ft;
+                System.out.println("正在执行FutureTask中的callable任务...");
+                ft.run();
+            }
         }
         return f.get();
     }
@@ -45,7 +47,6 @@ public class MyCache<A, V> implements Computable<A, V> {
             }
         }).start();
 
-        Thread.sleep(100);
         new Thread(() -> {
             try {
                 Integer result = expensiveComputer.compute("667");
@@ -55,7 +56,6 @@ public class MyCache<A, V> implements Computable<A, V> {
             }
         }).start();
 
-        Thread.sleep(100);
         new Thread(() -> {
             try {
                 Integer result = expensiveComputer.compute("666");
