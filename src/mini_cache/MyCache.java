@@ -50,14 +50,34 @@ public class MyCache<A, V> implements Computable<A, V> {
         }
     }
 
+    //要增加缓存过期功能了，重载了compute方法
+    public final static ScheduledExecutorService scheduledThreadPool = Executors.newScheduledThreadPool(5);
 
-    public static void main(String[] args) {
+    public V compute(A arg, long expiretime) throws ExecutionException, InterruptedException {
+        if (expiretime>0)   //如果超时时间大于0，用线程池帮我们做延迟的工作
+            scheduledThreadPool.schedule(() -> expire(arg), expiretime, TimeUnit.MILLISECONDS);//给线程池传入任务和延迟时间
+        return compute(arg);
+    }
+
+    public synchronized void expire(A key) {
+        Future<V> future = cache.get(key);
+        if (future != null) {
+            if (!future.isDone()) {    //缓存有效时间到了任务还没有执行结束
+                System.out.println("Future任务因过期被取消");
+                future.cancel(true);
+            }
+            System.out.println("过期时间到，缓存被清除");
+            cache.remove(key);
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
 
         MyCache<String, Integer> expensiveComputer = new MyCache<>(new MayFail());
 
         new Thread(() -> {
             try {
-                Integer result = expensiveComputer.compute("666");
+                Integer result = expensiveComputer.compute("666",5000L);
                 System.out.println("第一次的计算结果："+result);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -81,6 +101,10 @@ public class MyCache<A, V> implements Computable<A, V> {
                 e.printStackTrace();
             }
         }).start();
+
+        Thread.sleep(6000);
+        Integer result = expensiveComputer.compute("666");
+        System.out.println("主线程的计算结果：" + result);
     }
 }
 
