@@ -2,10 +2,11 @@ package mini_cache;
 
 import mini_cache.computable.Computable;
 import mini_cache.computable.ExpensiveFunction;
+import mini_cache.computable.MayFail;
+import sun.font.TrueTypeFont;
+
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.*;
 
 /**
  * 描述：  用ConcurrentHashMap保证线程安全，但是细细想来还有一个重复计算的问题，而且应该频率不低
@@ -21,22 +22,38 @@ public class MyCache<A, V> implements Computable<A, V> {
     }
 
     @Override
-    public V compute(A arg) throws Exception {
-        Future<V> f = cache.get(arg);
-        if (f == null) {   //相同的key一旦通过这个条件，重复计算问题就肯定又会发生了
-            FutureTask<V> ft = new FutureTask<>(()->c.compute(arg));
-            f = cache.putIfAbsent(arg, ft); //使用原子操作保证原子性
-            if (f == null) {   //再来一层过滤
-                f = ft;
-                System.out.println("正在执行FutureTask中的callable任务...");
-                ft.run();
+    public V compute(A arg) throws InterruptedException {
+        while(true){
+            Future<V> f = cache.get(arg);
+            if (f == null) {
+                FutureTask<V> ft = new FutureTask<>(() -> c.compute(arg));
+                f = cache.putIfAbsent(arg, ft); //使用原子操作保证原子性
+                if (f == null) {   //再来一层过滤
+                    f = ft;
+                    System.out.println("正在执行FutureTask中的callable任务...");
+                    ft.run();
+                }
+            }
+            try {
+                return f.get();            //异常要处理的
+            } catch (CancellationException e) {
+                System.out.println("被取消了");
+                cache.remove(arg);
+                throw e;
+            } catch (InterruptedException e) {
+                cache.remove(arg);
+                throw e;
+            } catch (ExecutionException e) {
+                System.out.println("计算错误，需要重试");
+                cache.remove(arg); //如果没有的话一定要移除这个空的FutureTask否则以后的计算也都会抛异常
             }
         }
-        return f.get();
     }
 
-    public static void main(String[] args) throws Exception {
-        MyCache<String, Integer> expensiveComputer = new MyCache<>(new ExpensiveFunction());
+
+    public static void main(String[] args) {
+
+        MyCache<String, Integer> expensiveComputer = new MyCache<>(new MayFail());
 
         new Thread(() -> {
             try {
